@@ -1,44 +1,27 @@
 #!/usr/bin/env bun
 
 import * as p from "@clack/prompts";
-import quest from "./helpers/quest_handling";
-import { state, loadState, saveState, StateOptions } from "./helpers/state";
-import git from "./helpers/git";
-import start from "./helpers/start";
-import done from "./helpers/done";
-import { displayStats } from "./helpers/stats";
-
+import { makedb } from "./helpers/make-db";
+import { add } from "./helpers/add";
+import { list } from "./helpers/list";
 async function main() {
-	p.intro("⚔️  Quest Log 🏰");
-	const loadStateRes = loadState();
-	if (!loadStateRes.ok) {
-		p.cancel(loadStateRes.err);
-		process.exit(0);
-	}
+	p.intro("Your Backlog");
 	const { action } = await p.group(
 		{
 			action: () =>
 				p.select({
 					options: [
 						{
-							value: "start",
-							label: "Start a Quest Line",
-							hint: "Needs a ./quest.toml nearby",
+							value: "init",
+							label: "Create your backlog db",
 						},
 						{
-							value: "done",
-							label: "Progress a Quest Line",
-							hint: "Needs an in-progress questline",
+							value: "add",
+							label: "Add a task",
 						},
 						{
-							value: "stats",
-							label: "See Stats",
-							hint: "Needs an in-progress questline",
-						},
-						{
-							value: "manage_git",
-							label: "Manage Git",
-							hint: "Manage your git settings",
+							value: "list",
+							label: "List tasks",
 						},
 					],
 					message: "What would you like to do?",
@@ -51,13 +34,34 @@ async function main() {
 			},
 		}
 	);
-	// -- Start Branch ----------
-	if (action == "start") {
-		p.log.step("🧙‍♂️ Starting your quest line...");
-		const { autogit } = await p.group(
+	// -- Init Branch ----------
+	if (action == "init") {
+		p.log.step("Creating your db...");
+		makedb();
+		p.outro("Created!");
+		process.exit(0);
+	}
+	if (action == "add") {
+		p.log.step("Adding your thing...");
+		const { title, body, project_group } = await p.group(
 			{
-				autogit: () =>
-					p.confirm({ message: "🤔 Auto-sync progress with git?" }),
+				title: () =>
+					p.text({
+						message: "Enter the task title:",
+						placeholder: "e.g., Fix login bug",
+						validate: (value) => (value ? undefined : "Title is required."),
+					}),
+				body: () =>
+					p.text({
+						message: "Enter the task description:",
+						placeholder: "e.g., Users cannot log in with valid credentials",
+						validate: (value) => (value ? undefined : "Body is required."),
+					}),
+				project_group: () =>
+					p.text({
+						message: "Enter the product group (optional):",
+						placeholder: "e.g., Authentication",
+					}),
 			},
 			{
 				onCancel: () => {
@@ -66,107 +70,25 @@ async function main() {
 				},
 			}
 		);
-		// -- Save git toggle for future ----
-		state.set(StateOptions.AutoGit, autogit);
-		saveState();
-		p.log.step("Loading...");
-		const loadQuestRes = quest.load();
-		if (!loadQuestRes.ok) {
-			p.cancel(loadQuestRes.err);
-			process.exit(0);
-		}
-		const quests = loadQuestRes.data;
-		if (autogit) {
-			p.log.step("Configuring git...");
-			const gitGuardRes = git.guard();
-			if (!gitGuardRes.ok) {
-				p.cancel(gitGuardRes.err);
-				process.exit(0);
-			}
-			const gitInitRes = await git.init();
-			if (!gitInitRes.ok) {
-				p.cancel(gitInitRes.err);
-				process.exit(0);
-			}
-		}
-		p.log.step("Taking first step...");
-		const startQuestRes = start.quest(quests);
-		if (!startQuestRes.ok) {
-			p.cancel(startQuestRes.err);
-			process.exit(0);
-		}
-		p.log.success(startQuestRes.data.msg);
-		if (autogit) {
-			const gitCheckoutRes = await git.checkout(startQuestRes.data.name);
-			if (!gitCheckoutRes.ok) {
-				p.cancel(gitCheckoutRes.err);
-				process.exit(0);
-			}
-			p.log.success(gitCheckoutRes.data.msg);
-		}
-		// -- Quietly Save Data ---------------
-		quest.save();
-		saveState();
-		p.outro("🦅 Safe Travels! 🏕️");
+
+		add({ title, body, project_group });
+		p.outro("Task added successfully!");
+		process.exit(0);
 	}
-
-	// -- Done Branch ----------
-	if (action == "done") {
-		quest.load();
-		const finishResponse = await done.finish();
-		if (!finishResponse.ok) {
-			p.cancel(finishResponse.err);
-			process.exit(0);
+	if (action == "list") {
+		p.log.step("Accessing your backlog...");
+		const res = list();
+		if (res.ok && res.tasks) {
+			res.tasks.map((entry) => {
+				Object.entries(entry).map(([k, v]) => {
+					if (k == "id" || k == "created_at" || typeof v == "undefined") {
+						// no op
+					} else {
+						console.log(`[${k}]: ${v}`);
+					}
+				});
+			});
 		}
-		quest.save();
-		saveState();
-		p.outro("🦅 Ever Onwards! 🏕️");
-	}
-
-	// -- Stats Branch -----------
-	if (action == "stats") {
-		quest.load();
-		const statsRes = displayStats();
-		if (statsRes.ok) {
-			p.log.info(statsRes.data);
-		} else {
-			p.log.warn(statsRes.data);
-		}
-		p.outro("🦅 Keep Going! 🏕️");
-	}
-
-	if (action == "manage_git") {
-		const gitGuardRes = git.guard();
-		if (!gitGuardRes.ok) {
-			p.cancel(gitGuardRes.err);
-			process.exit(0);
-		}
-		const { autogit, commitQuests } = await p.group(
-			{
-				autogit: () =>
-					p.confirm({ message: "🔗 Auto-sync progress with git?" }),
-				commitQuests: () => p.confirm({ message: "📝 Commit your quest log?" }),
-			},
-
-			{
-				onCancel: () => {
-					p.cancel("Operation cancelled.");
-					process.exit(0);
-				},
-			}
-		);
-		// -- Save git toggle for future ----
-		state.set(StateOptions.AutoGit, autogit);
-		state.set(StateOptions.CommitQuests, commitQuests);
-		if (autogit) {
-			const gitInitRes = await git.init();
-			if (!gitInitRes.ok) {
-				p.cancel(gitInitRes.err);
-				process.exit(0);
-			}
-		}
-		saveState();
-		p.outro("🦅 Git Updated! 🏕️");
 	}
 }
 
@@ -175,71 +97,69 @@ const subcommand = Bun.argv[2];
 if (!subcommand) {
 	main();
 } else {
-	const loadStateRes = loadState();
-	if (!loadStateRes.ok) {
-		p.cancel(loadStateRes.err);
-		process.exit(0);
-	}
 	switch (subcommand) {
-		case "done":
-			p.intro("⚔️  Quest Log - Step Complete 🏰");
-			quest.load();
-			const finishResponse = await done.finish();
-			if (!finishResponse.ok) {
-				p.cancel(finishResponse.err);
-				process.exit(0);
-			}
-			quest.save();
-			saveState();
-			p.outro("🦅 Ever Onwards! 🏕️");
-			break;
-		case "stats":
-			p.intro("⚔️  Quest Log - Stats 🏰");
-			quest.load();
-			const statsRes = displayStats();
-			if (statsRes.ok) {
-				p.log.info(statsRes.data);
-			} else {
-				p.log.warn(statsRes.data);
-			}
-			p.outro("🦅 Keep Going! 🏕️");
-			break;
-		case "git":
-			p.intro("⚔️  Quest Log - Git 🏰");
-			const gitGuardRes = git.guard();
-			if (!gitGuardRes.ok) {
-				p.cancel(gitGuardRes.err);
-				process.exit(0);
-			}
-			const { autogit, commitQuests } = await p.group(
-				{
-					autogit: () =>
-						p.confirm({ message: "🔗 Auto-sync progress with git?" }),
-					commitQuests: () =>
-						p.confirm({ message: "📝 Commit your quest log?" }),
-				},
-
-				{
-					onCancel: () => {
-						p.cancel("Operation cancelled.");
-						process.exit(0);
+		case "init":
+			p.intro("Creating your backlog...");
+			makedb();
+			p.outro("Created!");
+			process.exit(0);
+		case "add":
+			(async () => {
+				p.intro("Adding a task...");
+				const { title, body, project_group } = await p.group(
+					{
+						title: () =>
+							p.text({
+								message: "Enter the task title:",
+								placeholder: "e.g., Fix login bug",
+								validate: (value) => (value ? undefined : "Title is required."),
+							}),
+						body: () =>
+							p.text({
+								message: "Enter the task description:",
+								placeholder: "e.g., Users cannot log in with valid credentials",
+								validate: (value) => (value ? undefined : "Body is required."),
+							}),
+						project_group: () =>
+							p.text({
+								message: "Enter the product group (optional):",
+								placeholder: "e.g., Authentication",
+							}),
 					},
-				}
-			);
-			// -- Save git toggle for future ----
-			state.set(StateOptions.AutoGit, autogit);
-			state.set(StateOptions.CommitQuests, commitQuests);
-			if (autogit) {
-				const gitInitRes = await git.init();
-				if (!gitInitRes.ok) {
-					p.cancel(gitInitRes.err);
-					process.exit(0);
-				}
+					{
+						onCancel: () => {
+							p.cancel("Operation cancelled.");
+							process.exit(0);
+						},
+					}
+				);
+
+				add({ title, body, project_group });
+				p.outro("Task added successfully!");
+				process.exit(0);
+			})();
+			break;
+		case "list":
+			p.intro("Listing tasks...");
+			const res = list();
+			if (res.ok && res.tasks) {
+				res.tasks.map((entry) => {
+					console.log(``);
+					Object.entries(entry).map(([k, v]) => {
+						if (k == "id" || k == "created_at" || typeof v == "undefined") {
+							// no op
+						} else {
+							console.log(`[${k}]: ${v}`);
+						}
+					});
+					console.log(``);
+				});
+			} else {
+				p.log.warn("No tasks found.");
 			}
-			saveState();
-			p.outro("🦅 Git Updated! 🏕️");
-			break;
+			process.exit(0);
 		default:
-			break;
+			p.log.warn("Unknown method...");
+			process.exit(0);
 	}
 }

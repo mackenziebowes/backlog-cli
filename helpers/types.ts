@@ -1,38 +1,16 @@
-import type { TomlPrimitive } from "smol-toml";
-
-type HelperSuccess = {
-	ok: true;
-	data: any;
-};
-
-type HelperFail = {
-	ok: false;
-	err: string;
-};
-
-export type HelperResponse = HelperSuccess | HelperFail;
-
-export type DeclaredQuest = {
-	id: number;
-	name: string;
-	description: string;
-	points: number;
-};
-
-export enum QuestStepStatus {
-	PENDING = "pending",
-	STARTED = "started",
-	FINISHED = "finished",
+// Input type (no defaults, all fields required except `id` which is optional for inserts)
+export interface EntryInput {
+	title: string;
+	project_group: string;
+	body?: string; // Optional field
 }
 
-export type LoadedQuest = DeclaredQuest & {
-	timeStarted?: Date;
-	timeFinished?: Date;
-	status: QuestStepStatus;
-};
-
-export type LoadedQuests = Map<number, LoadedQuest>;
-
-export type Primitive = string | Date | boolean | string[] | Date[] | boolean[];
-
-export type CTQLState = Map<string, Primitive | TomlPrimitive>;
+// Output type (includes defaults and reflects the database schema)
+export interface EntryOutput {
+	id: number;
+	created_at: string;
+	updated_at: string;
+	title: string;
+	project_group: string;
+	body?: string; // Optional field
+}

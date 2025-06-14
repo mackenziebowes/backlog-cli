@@ -1,18 +1,16 @@
 {
-	"name": "ctql",
-	"version": "0.0.6",
-	"description": "Clock Time Quest Log: RPG-style quest tracker for Solo Devs",
+	"name": "@deko/backlog",
+	"version": "0.0.1",
+	"description": "",
 	"type": "module",
 	"module": "index.ts",
 	"bin": {
-		"ctql": "index.ts"
+		"backlog": "index.ts"
 	},
 	"keywords": [
 		"cli",
 		"productivity",
-		"questlog",
-		"adhd",
-		"task-tracker"
+		"brain-dump"
 	],
 	"author": "Mackenzie Bowes <mackenzie@mackenziebowes.com>",
 	"license": "MIT",
@@ -26,7 +24,6 @@
 		"typescript": "^5"
 	},
 	"dependencies": {
-		"@clack/prompts": "^0.11.0",
-		"smol-toml": "^1.3.4"
+		"@clack/prompts": "^0.11.0"
 	}
 }
