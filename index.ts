@@ -4,6 +4,7 @@ import * as p from "@clack/prompts";
 import { makedb } from "./helpers/make-db";
 import { add } from "./helpers/add";
 import { list } from "./helpers/list";
+import { remove } from "./helpers/remove";
 async function main() {
 	p.intro("Your Backlog");
 	const { action } = await p.group(
@@ -81,7 +82,7 @@ async function main() {
 		if (res.ok && res.tasks) {
 			res.tasks.map((entry) => {
 				Object.entries(entry).map(([k, v]) => {
-					if (k == "id" || k == "created_at" || typeof v == "undefined") {
+					if (k == "created_at" || typeof v == "undefined") {
 						// no op
 					} else {
 						console.log(`[${k}]: ${v}`);
@@ -89,6 +90,29 @@ async function main() {
 				});
 			});
 		}
+	}
+	if (action == "remove") {
+		p.log.step("Removing a task...");
+		const { id } = await p.group(
+			{
+				id: () =>
+					p.text({
+						message: "Enter the ID of the task to remove:",
+						placeholder: "e.g., 123",
+						validate: (value) => (value ? undefined : "ID is required."),
+					}),
+			},
+			{
+				onCancel: () => {
+					p.cancel("Operation cancelled.");
+					process.exit(0);
+				},
+			}
+		);
+		let stringId = parseInt(id);
+		remove({ id: stringId });
+		p.outro("Task removed successfully!");
+		process.exit(0);
 	}
 }
 
@@ -103,6 +127,7 @@ if (!subcommand) {
 			makedb();
 			p.outro("Created!");
 			process.exit(0);
+		case "make":
 		case "add":
 			(async () => {
 				p.intro("Adding a task...");
@@ -146,7 +171,7 @@ if (!subcommand) {
 				res.tasks.map((entry) => {
 					console.log(``);
 					Object.entries(entry).map(([k, v]) => {
-						if (k == "id" || k == "created_at" || typeof v == "undefined") {
+						if (k == "created_at" || typeof v == "undefined") {
 							// no op
 						} else {
 							console.log(`[${k}]: ${v}`);
@@ -157,6 +182,29 @@ if (!subcommand) {
 			} else {
 				p.log.warn("No tasks found.");
 			}
+			process.exit(0);
+		case "rm":
+		case "remove":
+			p.log.step("Removing a task...");
+			const { id } = await p.group(
+				{
+					id: () =>
+						p.text({
+							message: "Enter the ID of the task to remove:",
+							placeholder: "e.g., 123",
+							validate: (value) => (value ? undefined : "ID is required."),
+						}),
+				},
+				{
+					onCancel: () => {
+						p.cancel("Operation cancelled.");
+						process.exit(0);
+					},
+				}
+			);
+			let stringId = parseInt(id);
+			remove({ id: stringId });
+			p.outro("Task removed successfully!");
 			process.exit(0);
 		default:
 			p.log.warn("Unknown method...");
